@@ -3,7 +3,7 @@ This script is part of the Score Four program. It contains the class of the game
 '''
 
 from GameState import GameState 
-from Player import Player, PlayerRLAI
+from Player import Player, PlayerPPO
 import datetime
 
 class Game:
@@ -33,22 +33,9 @@ class Game:
             time = (end_time - start_time).total_seconds()
             #print(f'Time = {time}')
             self.logInfo(f"Move {self.CurrentGameState.MoveCount} : player {0 if self.CurrentGameState.IsPlayerZeroTurn else 1} playing move {move}")
-
-            OldGamestate = self.CurrentGameState.copy()
             self.CurrentGameState.playLegalMove(move)
-        
-            # If the game is over, send the winning move to the loser player
-            if self.CurrentGameState.getWinner() == 0:
-                self.Player1.receive_last_feedback(OldGamestate, 1, move, -1, self.CurrentGameState, 0)
-            elif self.CurrentGameState.getWinner() == 1:
-                self.Player0.receive_last_feedback(OldGamestate, 1, move, -1, self.CurrentGameState, 0)
-            
+
         if self.CurrentGameState.getWinner() is not None:
             self.logInfo(f"END GAME : Player {self.CurrentGameState.getWinner()} wins")
         else :
             self.logInfo("END GAME : draw!")
-
-        # Decrease epsilon from episode to episode
-        for player in [self.Player0, self.Player1]:
-            if isinstance(player, PlayerRLAI) and player.epsilon > 0.05:
-                player.epsilon *= 0.995

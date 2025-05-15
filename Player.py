@@ -7,13 +7,13 @@ This script is part of the Score Four program. It contains all the classes of th
 '''
 
 from abc import ABC, abstractmethod
-import GameState
-import RLbasic
+from GameState import GameState, SIZE, WIN_SIZE
 import random
 import math
+import numpy as np
+from stable_baselines3 import PPO
 
 current_IDs = list()
-
 
 class Player(ABC):
     
@@ -31,11 +31,7 @@ class Player(ABC):
             self.ID = ID
 
     @abstractmethod
-    def strategy(self, gameState : GameState.GameState) -> tuple: #return a move : a legal triplet of coordinates in the grid
-        pass
-
-    @abstractmethod
-    def receive_last_feedback(self, old_gameState, old_player, move, reward, gameState, player):
+    def strategy(self, gameState : GameState) -> tuple: #return a move : a legal triplet of coordinates in the grid
         pass
 
 
@@ -45,12 +41,9 @@ class PlayerRandom(Player):
         Player.__init__(self, ID)
         self.name = "RNDAI"
     
-    def strategy(self, gameState: GameState.GameState) -> tuple:
+    def strategy(self, gameState: GameState) -> tuple:
         return random.choice(gameState.getPossibleMoves())[0]
-    
-    def receive_last_feedback(self, winning_gameState: GameState.GameState, winner, last_move, reward, gameState: GameState.GameState, looser):
-        pass
-    
+
 
 class PlayerHuman(Player) : 
 
@@ -58,7 +51,7 @@ class PlayerHuman(Player) :
         Player.__init__(self, ID)
         self.name = "HUMAN"
 
-    def strategy(self, gameState: GameState.GameState) -> tuple:
+    def strategy(self, gameState: GameState) -> tuple:
         possible_moves = gameState.getPossibleMoves()
         nb_possible_moves = len(possible_moves)
         valid_input = False
@@ -74,12 +67,9 @@ class PlayerHuman(Player) :
                 else:
                     print(f'This move is not valid. Please try again.')
         return possible_moves[chosen_move][0]
-    
-    def receive_last_feedback(self, winning_gameState: GameState.GameState, winner, last_move, reward, gameState: GameState.GameState, looser):
-        pass
         
 
-class PlayerSearchTreeAI(Player) :
+class PlayerSearchTree(Player) :
 
     def __init__(self, ID, depthMax = 0, epsilon = None) -> None:
         Player.__init__(self, ID)
@@ -96,10 +86,9 @@ class PlayerSearchTreeAI(Player) :
         The higher the ratio "pawn /empty square" of the window, the higher the score of the window.
         The distribution of scores follows an exponential function.
         '''
-        win_size = GameState.WIN_SIZE
-        for i in range(win_size+1):
-            if win_size-i > 0:
-                self.alignment_score_table[(win_size-i, i)] = int((win_size-i)*math.exp(win_size-i))
+        for i in range(WIN_SIZE+1):
+            if WIN_SIZE-i > 0:
+                self.alignment_score_table[(WIN_SIZE-i, i)] = int((WIN_SIZE-i)*math.exp(WIN_SIZE-i))
         
     def compute_alignments_score(self, player, other_player, window) -> int:
         '''
@@ -108,7 +97,7 @@ class PlayerSearchTreeAI(Player) :
         return self.alignment_score_table.get((window.count(player), window.count(None)), 0) - \
                     self.alignment_score_table.get((window.count(other_player), window.count(None)), 0)
     
-    def compute_last_move_score(self, gameState: GameState.GameState) -> int:
+    def compute_last_move_score(self, gameState: GameState) -> int:
         '''
         Calculates the score of the last move by calculating the score of the 13 segments that intersect in its coordinate,
         and in the top coordinate.
@@ -117,9 +106,7 @@ class PlayerSearchTreeAI(Player) :
         other_player = 1-self.ID
         lastMove = gameState.LastMove 
         grid = gameState.Grid
-        win_size = GameState.WIN_SIZE
-        grid_size = GameState.SIZE
-        dif_size = grid_size - win_size
+        dif_size = SIZE - WIN_SIZE
         score = 0
         # If it's the first move, return a null score
         if lastMove is None:
@@ -127,50 +114,50 @@ class PlayerSearchTreeAI(Player) :
         else:
             x, y, z = lastMove
         # From the coordinate of the last movement and its z+1 coordinate, record the elements of ...
-        list_z = [z] if z+1 == grid_size else [z, z+1]
+        list_z = [z] if z+1 == SIZE else [z, z+1]
         for z in list_z:
             segments = []
             segments.extend([
                 # ... the X layer column, and of ...
-                [grid[x][y][j] for j in range(grid_size)],
+                [grid[x][y][j] for j in range(SIZE)],
                 # ... the X layer row, and of ...
-                [grid[x][j][z] for j in range(grid_size)],
+                [grid[x][j][z] for j in range(SIZE)],
                 # ... the 2 X layer diagonals, and of ...
                 [grid[x][i][j] for i in range(y - 1, -1, -1) for j in range(z - 1, -1, -1) if i - y == j - z][::-1] + \
-                    [grid[x][i][j] for i in range(y, grid_size) for j in range(z, grid_size) if i - y == j - z],
-                [grid[x][i][j] for i in range(y, -1, -1) for j in range(z, grid_size) if i - y == z - j][::-1] + \
-                    [grid[x][i][j] for i in range(y, grid_size) for j in range(z - 1, -1, -1) if i - y == z - j],
+                    [grid[x][i][j] for i in range(y, SIZE) for j in range(z, SIZE) if i - y == j - z],
+                [grid[x][i][j] for i in range(y, -1, -1) for j in range(z, SIZE) if i - y == z - j][::-1] + \
+                    [grid[x][i][j] for i in range(y, SIZE) for j in range(z - 1, -1, -1) if i - y == z - j],
                 # ... the Y layer row, and of ...
-                [grid[j][y][z] for j in range(grid_size)],
+                [grid[j][y][z] for j in range(SIZE)],
                 # ... the 2 Y layer diagonals, and of ...
                 [grid[i][y][j] for i in range(x - 1, -1, -1) for j in range(z - 1, -1, -1) if i - x == j - z][::-1] + \
-                    [grid[i][y][j] for i in range(x, grid_size) for j in range(z, grid_size) if i - x == j - z],
-                [grid[i][y][j] for i in range(x, -1, -1) for j in range(z, grid_size) if i - x == z - j][::-1] + \
-                    [grid[i][y][j] for i in range(x, grid_size) for j in range(z - 1, -1, -1) if i - x == z - j],
+                    [grid[i][y][j] for i in range(x, SIZE) for j in range(z, SIZE) if i - x == j - z],
+                [grid[i][y][j] for i in range(x, -1, -1) for j in range(z, SIZE) if i - x == z - j][::-1] + \
+                    [grid[i][y][j] for i in range(x, SIZE) for j in range(z - 1, -1, -1) if i - x == z - j],
                 # ... the 2 Z layer diagonals, and of ...
                 [grid[i][j][z] for i in range(x - 1, -1, -1) for j in range(y - 1, -1, -1) if i - x == j - y][::-1] + \
-                    [grid[i][j][z] for i in range(x, grid_size) for j in range(y, grid_size) if i - x == j - y],
-                [grid[i][j][z] for i in range(x, -1, -1) for j in range(y, grid_size) if i - x == y - j][::-1] + \
-                    [grid[i][j][z] for i in range(x, grid_size) for j in range(y - 1, -1, -1) if i - x == y - j],
+                    [grid[i][j][z] for i in range(x, SIZE) for j in range(y, SIZE) if i - x == j - y],
+                [grid[i][j][z] for i in range(x, -1, -1) for j in range(y, SIZE) if i - x == y - j][::-1] + \
+                    [grid[i][j][z] for i in range(x, SIZE) for j in range(y - 1, -1, -1) if i - x == y - j],
                 # ... the 4 diagonals that cross the X, the Y and the Z layers.
                 [grid[i][j][k] for i in range(x - 1, -1, -1) for j in range(y - 1, -1, -1) for k in range(z - 1, -1, -1) if i - x == j - y == k - z][::-1] + \
-                    [grid[i][j][k] for i in range(x, grid_size) for j in range(y, grid_size) for k in range(z, grid_size) if i - x == j - y == k - z],
-                [grid[i][j][k] for i in range(x - 1, -1, -1) for j in range(y - 1, -1, -1) for k in range(z, grid_size)if x - i == y - j == k - z][::-1] + \
-                    [grid[i][j][k] for i in range(x, grid_size) for j in range(y, grid_size) for k in range(z, -1, -1)if i - x == j - y == z - k],
-                [grid[i][j][k] for i in range(x - 1, -1, -1)for j in range(y, grid_size) for k in range(z - 1, -1, -1)if x - i == j - y == z - k][::-1] + \
-                    [grid[i][j][k] for i in range(x, grid_size) for j in range(y, -1, -1) for k in range(z, grid_size)if i - x == y - j == k - z],
-                [grid[i][j][k] for i in range(x - 1, -1, -1)for j in range(y, grid_size) for k in range(z, grid_size)if x - i == j - y == k - z][::-1] + \
-                    [grid[i][j][k] for i in range(x, grid_size) for j in range(y, -1, -1)for k in range(z, -1, -1)if i - x == y - j == z - k],
+                    [grid[i][j][k] for i in range(x, SIZE) for j in range(y, SIZE) for k in range(z, SIZE) if i - x == j - y == k - z],
+                [grid[i][j][k] for i in range(x - 1, -1, -1) for j in range(y - 1, -1, -1) for k in range(z, SIZE)if x - i == y - j == k - z][::-1] + \
+                    [grid[i][j][k] for i in range(x, SIZE) for j in range(y, SIZE) for k in range(z, -1, -1)if i - x == j - y == z - k],
+                [grid[i][j][k] for i in range(x - 1, -1, -1)for j in range(y, SIZE) for k in range(z - 1, -1, -1)if x - i == j - y == z - k][::-1] + \
+                    [grid[i][j][k] for i in range(x, SIZE) for j in range(y, -1, -1) for k in range(z, SIZE)if i - x == y - j == k - z],
+                [grid[i][j][k] for i in range(x - 1, -1, -1)for j in range(y, SIZE) for k in range(z, SIZE)if x - i == j - y == k - z][::-1] + \
+                    [grid[i][j][k] for i in range(x, SIZE) for j in range(y, -1, -1)for k in range(z, -1, -1)if i - x == y - j == z - k],
                 ])
             # By moving a window of size "win_size" in those 13 segments, compute their alignments scores.
             for segment in segments:
                 for i in range(dif_size + 1):
-                    window = segment[i:i + win_size]
+                    window = segment[i:i + SIZE]
                     score += self.compute_alignments_score(player, other_player, window)
         # Return the final score
         return score
     
-    def MinMaxAlphaBetaPruning(self, gameState: GameState.GameState, depth, alpha, beta, maximizingPlayer) -> int:
+    def MinMaxAlphaBetaPruning(self, gameState: GameState, depth, alpha, beta, maximizingPlayer) -> int:
         '''
         Min max algorithm with alpha beta pruning.
         '''
@@ -223,7 +210,7 @@ class PlayerSearchTreeAI(Player) :
                 max_index.append(i)
         return random.choice(max_index)
 
-    def strategy(self, gameState: GameState.GameState) -> tuple:
+    def strategy(self, gameState: GameState) -> tuple:
         '''
         Evaluates each movement recursively according to a given depth.
         '''
@@ -243,68 +230,38 @@ class PlayerSearchTreeAI(Player) :
             random_max_index = self.random_max_index(values)
             bestMove = gameState.getPossibleMoves()[random_max_index][0]
             return bestMove
-    
-    def receive_last_feedback(self, winning_gameState: GameState.GameState, winner, last_move, reward, gameState: GameState.GameState, looser):
-        pass
 
 
-class PlayerRLAI(Player) :
+class PlayerPPO(Player):
+    def __init__(self, ID: int, model_path: str):
+        super().__init__(ID)
+        self.name = "PPOAI"
+        self.model = PPO.load(model_path)
 
-    def __init__(self, ID, learn = False, weights_file = None) -> None:
-        Player.__init__(self, ID)
-        self.name = "RLAI"
-        self.learn = learn
-        self.weights_file = weights_file
-        self.model = RLbasic.ScoreFourNN()
-        self.optimizer = RLbasic.optim.Adam(self.model.parameters(), lr = 0.001)
-        self.loss_fn = RLbasic.nn.SmoothL1Loss()
-        self.done = False
-        self.epsilon = 1
-        if learn == False:
-            self.epsilon = 0
-        if weights_file != None:
-            RLbasic.load_weights(self.model, self.weights_file)
+    def strategy(self, gameState):
 
-    def strategy(self, gameState: GameState.GameState) -> tuple:
-        '''
-        Two modes : 
-        1) play to learn using Deep RL,
-        2) play to win using previous trained Deep RL model.
-        '''
-        player = 0 if gameState.IsPlayerZeroTurn == True else 1
-        if self.learn == True:
-            move_index, bestMove = RLbasic.select_action(0, player, gameState, self.model, self.epsilon)
-            new_gameState = gameState.copy()
-            new_gameState.playLegalMove(bestMove[0])
-            reward = 1 if new_gameState.getWinner() is not None else 0
-            done = True if new_gameState.checkEnd() == True else False
-            next_player = 1 - player
-            state_input = RLbasic.grid_to_input(gameState.Grid)
-            player_input = RLbasic.torch.tensor([player], dtype = RLbasic.torch.float).unsqueeze(0)
-            action_tensor = RLbasic.torch.tensor([move_index], dtype = RLbasic.torch.int64)
-            reward_tensor = RLbasic.torch.tensor([reward], dtype = RLbasic.torch.float32)
-            next_state_input = RLbasic.grid_to_input(new_gameState.Grid)
-            next_player_input = RLbasic.torch.tensor([next_player], dtype = RLbasic.torch.float).unsqueeze(0)
-            done_tensor = RLbasic.torch.tensor([done], dtype = RLbasic.torch.float32)
-            RLbasic.update_model(0, self.model, self.optimizer, self.loss_fn, state_input, player_input, action_tensor, reward_tensor, next_state_input, next_player_input, done_tensor)
+        obs = self._encode(gameState)
+        action, _ = self.model.predict(obs, deterministic = True)
+
+        possible = gameState.getPossibleMoves()
+        orig_indices = [orig for (_move, orig) in possible]
+
+        # If the move is illegal, fallback on random move
+        if action not in orig_indices:
+            move = random.choice(possible)[0]
+            return move
         else:
-            move_index, bestMove = RLbasic.select_action(0, player, gameState, self.model, epsilon = 0)
-        return bestMove[0]
-    
-    def receive_last_feedback(self, old_gameState: GameState.GameState, winner, last_move, reward, winning_gameState: GameState.GameState, looser):
-        '''
-        When the opponent wins and the episode is about to end, the model learns one
-        last time to take into account the move that led him to the defeat.
-        '''
-        if self.learn == True:
-            for i in range(len(old_gameState.getPossibleMoves())):
-                if old_gameState.getPossibleMoves()[i][0] == last_move:
-                    index_last_move = i
-            old_state_input = RLbasic.grid_to_input(old_gameState.Grid)
-            winner_input = RLbasic.torch.tensor([winner], dtype = RLbasic.torch.float).unsqueeze(0)
-            action_tensor = RLbasic.torch.tensor([index_last_move], dtype = RLbasic.torch.int64)
-            reward_tensor = RLbasic.torch.tensor([reward], dtype = RLbasic.torch.float32)
-            winning_state_input = RLbasic.grid_to_input(winning_gameState.Grid)
-            looser_input = RLbasic.torch.tensor([looser], dtype = RLbasic.torch.float).unsqueeze(0)
-            done_tensor = RLbasic.torch.tensor([1], dtype = RLbasic.torch.float32)
-            RLbasic.update_model(0, self.model, self.optimizer, self.loss_fn, old_state_input, winner_input, action_tensor, reward_tensor, winning_state_input, looser_input, done_tensor)
+            move = next(m for (m, orig) in possible if orig == action)
+            return move
+
+    def _encode(self, gameState):
+        grid = gameState.Grid
+        obs = np.zeros((2 * SIZE * SIZE * SIZE,), dtype = np.int8)
+        for x in range(SIZE):
+            for y in range(SIZE):
+                for z in range(SIZE):
+                    v = grid[x][y][z]
+                    if v is not None:
+                        idx = v * (SIZE**3) + x * (SIZE**2) + y * SIZE + z
+                        obs[idx] = 1
+        return obs
