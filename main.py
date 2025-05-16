@@ -1,27 +1,30 @@
 '''
-This script is the main of the Score Four program. It initializes the two players, the game, and loop accross 
-epoch (several consecutive games). It is the only script that needs to be manipulated to play the game,
-selecting and initializing the players.
+This script is the main part of the program.It initializes the two players, the game, and loops through consecutive games.
+It's the only script that needs to be manipulated initialize the players and play the game.
+Currently, there are 4 different possible players :
+- a human (PlayerHuman),
+- an AI which play randomly (PlayerRandom),
+- an AI which use a search tree to decide (PlayerSearchTree),
+- an AI which use a neural network to decide (PlayerPPO).
 '''
 
-from Game import Game
-from GameState import GameState
-from Player import PlayerRandom, PlayerHuman, PlayerSearchTreeAI, PlayerRLAI
-from RLbasic import save_weights
+from game import Game
+from game_state import GameState
+from player import PlayerRandom, PlayerHuman, PlayerSearchTree, PlayerPPO
 
 # Create the players, the class defines the strategy
 
 #player0 = PlayerHuman(ID = 0)
-#player0 = PlayerRandom(ID = 0)
-player0 = PlayerSearchTreeAI(ID = 0, depthMax = 3)
-#player0 = PlayerRLAI(ID = 0, learn = False, weights_file = "RNDAI_vs_RLAI_500000ep_weights.pth")
+player0 = PlayerRandom(ID = 0)
+#player0 = PlayerSearchTree(ID = 0, depthMax = 3)
+#player0 = PlayerPPO(ID = 0, model_path = "ppo_score_four_final")
 
 #player1 = PlayerHuman(ID = 1)
 #player1 = PlayerRandom(ID = 1)
-player1 = PlayerSearchTreeAI(ID = 1, depthMax = 3)
-#player1 = PlayerRLAI(ID = 1, learn = False, weights_file = "RLAI_SelfPlay_1000000ep_weights.pth")
+#player1 = PlayerSearchTree(ID = 1, depthMax = 1)
+player1 = PlayerPPO(ID = 1, model_path = "ppo_score_four_final")
 
-numberOfGames = 10
+numberOfGames = 100
 gameLengths = [None] * numberOfGames
 winners = [None] * numberOfGames
 
@@ -29,19 +32,8 @@ for i in range(numberOfGames):
     print(f'Game {i}')
     game = Game(player0 = player0, player1 = player1, isVerbose = False, gameState = GameState())
     game.run()
-    #basic statistic collection on the game once it's ended
     gameLengths[i] = game.CurrentGameState.MoveCount
     winners[i] = game.CurrentGameState.getWinner()
 
 print(f"Average game length : {sum(gameLengths)/len(gameLengths)} moves")
 print(f"Player 0 won {len([x for x in winners if x == 0])} \nPlayer 1 won {len([x for x in winners if x == 1])}")
-
-if isinstance(player1, PlayerRLAI):
-    if player1.learn == True:
-        file_path = f"{player0.name}_vs_{player1.name}_{numberOfGames}ep_weights.pth"
-        save_weights(player1.model, file_path)
-
-if isinstance(player0, PlayerRLAI):
-    if player0.learn == True:
-        file_path = f"{player0.name}_vs_{player1.name}_{numberOfGames}ep_weights.pth"
-        save_weights(player0.model, file_path)

@@ -1,5 +1,5 @@
 '''
-This script is part of the Score Four program. It contains the structure of the grid, the class of the game states,
+This script contains the structure of the grid, the class of the game states,
 and all the methods which allow the players to interact with the game.
 '''
 

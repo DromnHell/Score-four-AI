@@ -9,35 +9,67 @@ For a rough information page on the game itself, check out [its Wikipedia page](
 ## Implementation
 
 ### main.py
-Define the players to use then launch as many games of Score Four as you want and check your stats from here.
+This script define the players to use then launch as many games of Score Four as you want and check your stats from here.
 For reference about 3000 games per second can be completed with PlayerRandom and a standard 4 Size.
 
-#### Modifications and additions to the original file
-* Adding the call to save_weights() function to save lhe weights of the RL AI.
+### game.py
+This script define the class of the game and the principal loop game.
 
-### Game
-Define the class of the game and the principal loop game.
+### player.py
+This script defines all the different possible players.
+A player is required to implement a game strategy i.e return a legal move from a given gamestate.
+Currently, there are 4 different possible players :
+* a human (PlayerHuman),
+* an AI which play randomly (PlayerRandom),
+* an AI which use a search tree to decide (PlayerSearchTree),
+* an AI which use a neural network to decide (PlayerPPO).
 
-#### Modifications and additions to the original file
-* Adding the call to receive_last_feedback() function to send the wining action of winner player to the looser one. Used only by the RL AI.
-* Adding a piece of code that gradually decreases epsilon. Used only by the RL AI.
+### game_state.py
+This script contains most of the game logic. Also contains the parameters for the grid size and the win condition size (if you want to play Score 5). Not intended to be modified except for these parameters.
 
-### Players
-A player is required to implement a game strategy i.e return a legal move from a given gamestate. PlayerRandom and PlayerHuman give some examples of implementation for this class.
+### train_PPO.py
+This script is used to train a PPO model to play score four. It generates a “ppo_score_four_final” file containing the model's weights.
 
-#### Modifications and additions to the original file
-* Adding conditions in the constructor of the Player(ABC) class to better manage the initialization of players IDs.
-* Change the system for entering an imput for the human player, so that if a wrong action is entered, it can be restarted without crash the game.
-* Adding the classes of the players PlayerSearchTreeAI (fully functionnal) and PlayerRLAI (not fully functional) and their methods.
+## Contribution
 
-### GameState
-This file and class contains most of the game logic. Also contains the parameters for the grid size and the win condition size (if you want to play Score 5). Not intended to be modified except for these parameters.
+Contributions are welcome !
 
-#### Modifications and additions to the original file
-* Adding a copy() function to copy a game state.
-* Modification of the getPossibleMoves() actions to save the original actions index.
+There are two main areas for improvement:
+* The search tree AI takes too long to calculate the best move. The algorithm needs to be optimized.
+* The neural network AI wins 90% of the time against the random AI, but loses all the time against the search tree AI with a depth of 1, that is quite bad.
 
-### RLbasic (new file)
-This file contains the class of a neural network (NN) and functions that allow the player "PlayerRLAI" to learn and play Score Four.
-The train_self_play() function also allows  the NN to train the itself without going through the game loop of the "Game.py" script, but it not fully functional at the moment.
+Here's a list of improvements to neural network training:
 
+#### Curriculum Learning Enhancements
+- **Progressive opponents**: Add phases against increasingly deep search-tree AIs (depth 2, 3, 4) or varied opponent pools (Random, Tree, Human).  
+- **Dynamic board size**: Start training on smaller boards, then ramp up to 4×4×4.  
+- **Incremental alignment length**: Begin by rewarding shorter alignments (e.g. 2 in a row), then require longer ones.  
+- **Evolving opening positions**: Train from empty boards, then introduce critical opening scenarios.
+
+#### Reward Shaping
+- **Intermediate bonuses**: +0.1 reward for forming 2- or 3-piece alignments.  
+- **Per-move penalty**: −0.01 per action to speed up games and discourage aimless play.
+
+#### Native Illegal-Action Masking
+- Implement a **dynamic action mask** in the policy so full columns are never proposed (e.g. via sb3-contrib’s MaskablePPO).
+
+#### Hyperparameter Fine-Tuning
+- Adjust **`ent_coef`** to balance exploration vs. exploitation.  
+- Anneal **`learning_rate`** or tweak **`clip_range`** toward the end of training.  
+- Experiment with different **rollout lengths** (`n_steps`) and **batch sizes**.
+
+#### Advanced Self-Play (League Training)
+- Keep a **pool of historical checkpoints** and train against a diverse set of past versions.  
+- Build an **auto-challenger selection** mechanism to continually push the agent’s limits.
+
+#### Imitation Learning / Pre-training
+- Create a dataset of MinMax (depth 3–4) or human games and **pretrain the policy**.  
+- Then **fine-tune with PPO** to speed up convergence.
+
+#### Automated Evaluation & Checkpointing
+- Define **validation metrics** (win rates vs Random, Tree, etc.) and **save the best model** automatically.  
+- **Stop training** when performance metrics plateau.
+
+## Contact
+
+For any questions, please contact me at remi.dromnelle@gmail.com.
