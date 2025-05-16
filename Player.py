@@ -1,9 +1,9 @@
 '''
-This script is part of the Score Four program. It contains all the classes of the different possible players :
-- A random player AI,
-- A human player,
-- A tree search tree AI player,
-- A deep reinforcement learning AI player.
+This script contains all the classes of the different possible players :
+- a human (PlayerHuman),
+- an AI which play randomly (PlayerRandom),
+- an AI which use a search tree to decide (PlayerSearchTree),
+- an AI which use a neural network to decide (PlayerPPO).
 '''
 
 from abc import ABC, abstractmethod
@@ -13,42 +13,24 @@ import math
 import numpy as np
 from stable_baselines3 import PPO
 
-current_IDs = list()
 
 class Player(ABC):
     
     def __init__(self, ID) -> None:
+        self.ID = ID
         if ID not in (0, 1, "helper"):
             print("Error : the ID of the players has to be be 0 or 1.")
             quit()
-        elif ID in current_IDs:
-            print("Error :the two players must have a different ID.")
-        elif not current_IDs and ID == 1:
-            print("Error : the first player must have the ID 0.")
-            quit()
-        else:
-            current_IDs.append(ID)
-            self.ID = ID
 
     @abstractmethod
     def strategy(self, gameState : GameState) -> tuple: #return a move : a legal triplet of coordinates in the grid
         pass
 
 
-class PlayerRandom(Player):
-
-    def __init__(self, ID) -> None:
-        Player.__init__(self, ID)
-        self.name = "RNDAI"
-    
-    def strategy(self, gameState: GameState) -> tuple:
-        return random.choice(gameState.getPossibleMoves())[0]
-
-
 class PlayerHuman(Player) : 
 
     def __init__(self, ID) -> None:
-        Player.__init__(self, ID)
+        super().__init__(ID)
         self.name = "HUMAN"
 
     def strategy(self, gameState: GameState) -> tuple:
@@ -67,12 +49,22 @@ class PlayerHuman(Player) :
                 else:
                     print(f'This move is not valid. Please try again.')
         return possible_moves[chosen_move][0]
-        
+
+
+class PlayerRandom(Player):
+
+    def __init__(self, ID) -> None:
+        super().__init__(ID)
+        self.name = "RNDAI"
+
+    def strategy(self, gameState: GameState) -> tuple:
+        return random.choice(gameState.getPossibleMoves())[0]
+
 
 class PlayerSearchTree(Player) :
 
     def __init__(self, ID, depthMax = 0, epsilon = None) -> None:
-        Player.__init__(self, ID)
+        super().__init__(ID)
         self.name = f"STAI{depthMax}"
         self.depthMax = depthMax
         self.epsilon = epsilon
@@ -239,14 +231,17 @@ class PlayerPPO(Player):
         self.model = PPO.load(model_path)
 
     def strategy(self, gameState):
-
+        '''
+        Let the model predict the best next move.
+        '''
         obs = self._encode(gameState)
         action, _ = self.model.predict(obs, deterministic = True)
 
         possible = gameState.getPossibleMoves()
         orig_indices = [orig for (_move, orig) in possible]
 
-        # If the move is illegal, fallback on random move
+        # If the move is illegal, fallback on random move.
+        # In the future, we'd like to use MaskablePPO from sb3-contrib to directly mask illegal moves.
         if action not in orig_indices:
             move = random.choice(possible)[0]
             return move

@@ -1,5 +1,5 @@
 '''
-This script is part of the Score Four program. It contains the class of the game and the principal loop game.
+This script contains the class of the game and the principal loop game.
 '''
 
 from GameState import GameState 
