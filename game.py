@@ -2,8 +2,8 @@
 This script contains the class of the game and the principal loop game.
 '''
 
-from GameState import GameState 
-from Player import Player, PlayerPPO
+from game_state import GameState
+from player import Player, PlayerPPO
 import datetime
 
 class Game:

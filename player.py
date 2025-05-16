@@ -7,7 +7,7 @@ This script contains all the classes of the different possible players :
 '''
 
 from abc import ABC, abstractmethod
-from GameState import GameState, SIZE, WIN_SIZE
+from game_state import GameState, SIZE, WIN_SIZE
 import random
 import math
 import numpy as np

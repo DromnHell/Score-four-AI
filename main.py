@@ -8,9 +8,9 @@ Currently, there are 4 different possible players :
 - an AI which use a neural network to decide (PlayerPPO).
 '''
 
-from Game import Game
-from GameState import GameState
-from Player import PlayerRandom, PlayerHuman, PlayerSearchTree, PlayerPPO
+from game import Game
+from game_state import GameState
+from player import PlayerRandom, PlayerHuman, PlayerSearchTree, PlayerPPO
 
 # Create the players, the class defines the strategy
 

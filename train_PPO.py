@@ -8,8 +8,8 @@ import numpy as np
 import gymnasium as gym
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback
-from GameState import GameState, SIZE
-from Player import PlayerRandom, PlayerSearchTree
+from game_state import GameState, SIZE
+from player import PlayerRandom, PlayerSearchTree
 import random
 
 
